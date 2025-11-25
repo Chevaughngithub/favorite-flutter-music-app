@@ -29,6 +29,61 @@ class _MusicLibraryHomeState extends State<MusicLibraryHome> {
     Music(title: "Iron Man", artist: "Black Sabbath", album: "Paranoid", year: 1970),    
   ];
 
+  // --- Search / Filter / Sort state ---
+  String _searchQuery = '';
+  String _selectedArtist = 'All';
+  String _selectedYear = 'All'; // use 'All' as sentinel
+  String _sortBy = 'title'; // 'title', 'artist', 'year'
+
+  // Utility: compute available artists and years from the library
+  List<String> get _allArtists {
+    final artists = _musicLibrary.map((m) => m.artist).toSet().toList();
+    artists.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return artists;
+  }
+
+  List<String> get _allYears {
+    final years = _musicLibrary.map((m) => m.year.toString()).toSet().toList();
+    years.sort((a, b) => int.parse(a).compareTo(int.parse(b))); // ascending
+    return years;
+  }
+
+  // Applies search, filters and sorting to the base music list
+  List<Music> get _filteredAndSortedMusic {
+    final query = _searchQuery.trim().toLowerCase();
+
+    var list = _musicLibrary.where((m) {
+      // Apply search on title, artist, or album
+      final matchesQuery = query.isEmpty ||
+          m.title.toLowerCase().contains(query) ||
+          m.artist.toLowerCase().contains(query) ||
+          m.album.toLowerCase().contains(query);
+
+      // Apply artist filter
+      final matchesArtist = _selectedArtist == 'All' || m.artist == _selectedArtist;
+
+      // Apply year filter
+      final matchesYear = _selectedYear == 'All' || m.year.toString() == _selectedYear;
+
+      return matchesQuery && matchesArtist && matchesYear;
+    }).toList();
+
+    // Sorting
+    list.sort((a, b) {
+      switch (_sortBy) {
+        case 'artist':
+          return a.artist.toLowerCase().compareTo(b.artist.toLowerCase());
+        case 'year':
+          return a.year.compareTo(b.year);
+        case 'title':
+        default:
+          return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+      }
+    });
+
+    return list;
+  }
+
   /// Shows a dialog to add new music to the library
   /// Opens AddMusicDialog and passes a callback function to handle adding the new music
   void _showAddMusicDialog(){
@@ -77,12 +132,40 @@ class _MusicLibraryHomeState extends State<MusicLibraryHome> {
     );
   }
 
-  /// Deletes a music track from the library at the specified index
-  /// Updates the UI to reflect the removal
+  // Delete track at the given index and update UI
   void _deleteMusic(int index){
     setState(() {
       _musicLibrary.removeAt(index);
     });
+  }
+
+  // Shows confirmation dialog before deleting a track
+  // this returns true if user confirmed the deletion
+  Future<void> _confirmDelete(int index) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete song'),
+          content: Text('Are you sure you want to delete "${_musicLibrary[index].title}"? This action cannot be undone.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      _deleteMusic(index);
+    }
   }
  
   /// Builds the UI for the music library screen
@@ -97,6 +180,76 @@ class _MusicLibraryHomeState extends State<MusicLibraryHome> {
       ),
       body: Column( 
         children: [
+          // Search bar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: TextField(
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.search),
+                hintText: 'Search by title, artist, or album',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8.0)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+              onChanged: (value) => setState(() {
+                _searchQuery = value;
+              }),
+            ),
+          ),
+
+          // Filters and Sort controls
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+            child: Row(
+              children: [
+                // Artist filter
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _selectedArtist,
+                    items: [
+                      const DropdownMenuItem(value: 'All', child: Text('All artists')),
+                      ..._allArtists.map((a) => DropdownMenuItem(value: a, child: Text(a))),
+                    ],
+                    onChanged: (v) => setState(() {
+                      _selectedArtist = v ?? 'All';
+                    }),
+                    decoration: const InputDecoration(labelText: 'Artist'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // Year filter
+                SizedBox(
+                  width: 130,
+                  child: DropdownButtonFormField<String>(
+                    initialValue: _selectedYear,
+                    items: [
+                      const DropdownMenuItem(value: 'All', child: Text('All years')),
+                      ..._allYears.map((y) => DropdownMenuItem(value: y, child: Text(y))),
+                    ],
+                    onChanged: (v) => setState(() {
+                      _selectedYear = v ?? 'All';
+                    }),
+                    decoration: const InputDecoration(labelText: 'Year'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+
+                // Sort selector
+                DropdownButton<String>(
+                  value: _sortBy,
+                  items: const [
+                    DropdownMenuItem(value: 'title', child: Text('Title')),
+                    DropdownMenuItem(value: 'artist', child: Text('Artist')),
+                    DropdownMenuItem(value: 'year', child: Text('Year')),
+                  ],
+                  onChanged: (v) => setState(() {
+                    _sortBy = v ?? 'title';
+                  }),
+                ),
+              ],
+            ),
+          ),
+
           // Header container displaying the total number of songs
           Container(
             width: double.infinity, 
@@ -105,7 +258,7 @@ class _MusicLibraryHomeState extends State<MusicLibraryHome> {
             child: Center(
               child: Column(
                 children: [
-                  // Display the count of songs in the library
+                  // Display total count of songs in the library
                   Text('${_musicLibrary.length}', style: Theme.of(context).textTheme.headlineMedium),
                   const Text('Total Songs'),
                 ],
@@ -113,12 +266,12 @@ class _MusicLibraryHomeState extends State<MusicLibraryHome> {
             ),
           ),
          
-          // Scrollable list of all music tracks in the library
+          // Scrollable list of filtered & sorted music tracks
           Expanded(
             child: ListView.builder(              
-              itemCount: _musicLibrary.length,
+              itemCount: _filteredAndSortedMusic.length,
               itemBuilder: (context, index) {                
-                final music = _musicLibrary[index];
+                final music = _filteredAndSortedMusic[index];
                 // Each music track is displayed as a Card with ListTile
                 return Card(                  
                   margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -140,15 +293,29 @@ class _MusicLibraryHomeState extends State<MusicLibraryHome> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          onPressed: () => _showEditMusicDialog(index),
+                          onPressed: () {
+                            // Need to map filtered index back to original index for edit/delete
+                            final original = _filteredAndSortedMusic[index];
+                            final originalIndex = _musicLibrary.indexOf(original);
+                            if (originalIndex != -1) {
+                              _showEditMusicDialog(originalIndex);
+                            }
+                          },
                           icon: const Icon(Icons.edit),
                           color: Theme.of(context).colorScheme.primary,
                           tooltip: 'Edit',
                         ),
                         IconButton(
-                          onPressed: () => _deleteMusic(index), 
+                          onPressed: () {
+                            final original = _filteredAndSortedMusic[index];
+                            final originalIndex = _musicLibrary.indexOf(original);
+                            if (originalIndex != -1) {
+                              _confirmDelete(originalIndex);
+                            }
+                          },
                           icon: const Icon(Icons.delete),
                           color: Colors.redAccent,
+                          tooltip: 'Delete',
                         ),
                       ],
                     ),

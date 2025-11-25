@@ -27,6 +27,7 @@ class _AddMusicDialogState extends State<AddMusicDialog> {
   late final TextEditingController artistContoller;
   late final TextEditingController albumContoller;
   late final TextEditingController yearContoller;
+  final _formKey = GlobalKey<FormState>();
 
   @override
   void initState() {
@@ -46,12 +47,8 @@ class _AddMusicDialogState extends State<AddMusicDialog> {
     super.dispose();
   }
 
-  bool _validateFields() {
-    return titleContoller.text.isNotEmpty &&
-        artistContoller.text.isNotEmpty &&
-        albumContoller.text.isNotEmpty &&
-        yearContoller.text.isNotEmpty;
-  }
+  // Use Form validators for input validation
+  bool _validateFields() => _formKey.currentState?.validate() ?? false;
 
   @override
   Widget build(BuildContext context) {
@@ -60,34 +57,68 @@ class _AddMusicDialogState extends State<AddMusicDialog> {
     return AlertDialog(
       title: Text(isEdit ? 'Edit Music' : 'Add New Music'),
       content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: titleContoller,
-              decoration:
-                  InputDecoration(labelText: 'Title', hintText: 'Enter song title'),
-            ),
-            const SizedBox(height: 8.0),
-            TextField(
-              controller: artistContoller,
-              decoration:
-                  InputDecoration(labelText: 'Artist', hintText: 'Enter artist name'),
-            ),
-            const SizedBox(height: 8.0),
-            TextField(
-              controller: albumContoller,
-              decoration:
-                  InputDecoration(labelText: 'Album', hintText: 'Enter album name'),
-            ),
-            const SizedBox(height: 8.0),
-            TextField(
-              controller: yearContoller,
-              decoration:
-                  InputDecoration(labelText: 'Year', hintText: 'Enter year of release'),
-              keyboardType: TextInputType.number,
-            ),
-          ],
+        child: Form(
+          key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: titleContoller,
+                decoration: const InputDecoration(labelText: 'Title', hintText: 'Enter song title'),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter a title';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 8.0),
+              TextFormField(
+                controller: artistContoller,
+                decoration: const InputDecoration(labelText: 'Artist', hintText: 'Enter artist name'),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter an artist';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 8.0),
+              TextFormField(
+                controller: albumContoller,
+                decoration: const InputDecoration(labelText: 'Album', hintText: 'Enter album name'),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter an album';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 8.0),
+              TextFormField(
+                controller: yearContoller,
+                decoration: const InputDecoration(labelText: 'Year', hintText: 'Enter year of release'),
+                keyboardType: TextInputType.number,
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter a year';
+                  }
+
+                  final parsed = int.tryParse(value.trim());
+                  if (parsed == null) {
+                    return 'Year must be a number';
+                  }
+
+                  if (parsed < 1900 || parsed > 2025) {
+                    return 'Year must be between 1900 and 2025';
+                  }
+
+                  return null;
+                },
+              ),
+            ],
+          ),
         ),
       ),
       actions: [
@@ -98,21 +129,20 @@ class _AddMusicDialogState extends State<AddMusicDialog> {
             child: const Text('Cancel')),
         TextButton(
             onPressed: () {
+              // Validate and submit the form
               if (!_validateFields()) return;
 
-              final title = titleContoller.text;
-              final artist = artistContoller.text;
-              final album = albumContoller.text;
-              final year = int.tryParse(yearContoller.text) ?? 0;
+              final title = titleContoller.text.trim();
+              final artist = artistContoller.text.trim();
+              final album = albumContoller.text.trim();
+              final yearParsed = int.tryParse(yearContoller.text.trim());
+              if (yearParsed == null) return;
+              final year = yearParsed;
 
               if (isEdit) {
-                if (widget.onEditMusic != null) {
-                  widget.onEditMusic!(title, artist, album, year);
-                }
+                widget.onEditMusic?.call(title, artist, album, year);
               } else {
-                if (widget.onAddMusic != null) {
-                  widget.onAddMusic!(title, artist, album, year);
-                }
+                widget.onAddMusic?.call(title, artist, album, year);
               }
 
               Navigator.of(context).pop();
