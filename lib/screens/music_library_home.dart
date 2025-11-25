@@ -53,6 +53,30 @@ class _MusicLibraryHomeState extends State<MusicLibraryHome> {
     );
   }
 
+  /// Shows the dialog to edit an existing music entry at the given index
+  void _showEditMusicDialog(int index) {
+    final music = _musicLibrary[index];
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AddMusicDialog(
+          music: music,
+          onEditMusic: (title, artist, album, year) {
+            setState(() {
+              _musicLibrary[index] = Music(
+                title: title,
+                artist: artist,
+                album: album,
+                year: year,
+              );
+            });
+          },
+        );
+      },
+    );
+  }
+
   /// Deletes a music track from the library at the specified index
   /// Updates the UI to reflect the removal
   void _deleteMusic(int index){
@@ -111,11 +135,22 @@ class _MusicLibraryHomeState extends State<MusicLibraryHome> {
                     title: Text(music.title),
                     // Artist, album, and year information
                     subtitle: Text('${music.artist} • ${music.album} (${music.year})'),
-                    // Delete button on the right
-                    trailing: IconButton(
-                      onPressed: () => _deleteMusic(index), 
-                      icon: const Icon(Icons.delete),
-                      color: Colors.redAccent,
+                    // Edit and Delete buttons on the right
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          onPressed: () => _showEditMusicDialog(index),
+                          icon: const Icon(Icons.edit),
+                          color: Theme.of(context).colorScheme.primary,
+                          tooltip: 'Edit',
+                        ),
+                        IconButton(
+                          onPressed: () => _deleteMusic(index), 
+                          icon: const Icon(Icons.delete),
+                          color: Colors.redAccent,
+                        ),
+                      ],
                     ),
                   ),
                 );
